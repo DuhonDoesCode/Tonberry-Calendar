@@ -8,15 +8,6 @@ intents = discord.Intents.default()
 intents.message_content = True  # Required for message-based commands if also used
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# @bot.event
-# async def on_ready():
-#     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
-#     # Sync global commands (can take time to appear)
-#     await tree.sync()
-#     # Or sync to a specific guild for quicker testing
-#     # await tree.sync(guild=discord.Object(id=YOUR_GUILD_ID))
-#     print('Slash commands synced!')
-
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
@@ -111,21 +102,6 @@ async def managers(interaction: discord.Interaction):
     message = ", ".join([guild.get_role(i[0]).name for i in allowed_roles])
     await interaction.response.send_message("The roles with permission to manage the calendar are " + message + ".")
     
-
-# @bot.tree.command(name="addevent", description="Adds an event to the calendar. Only runs if you have a select calendar manager role.")
-# @is_manager()
-
-# # Define a simple slash command
-# @tree.command(name="hello", description="Says hello!")
-# async def hello_command(interaction: discord.Interaction):
-#     await interaction.response.send_message("Hello there!")
-
-# # Define a slash command with an argument
-# @tree.command(name="greet", description="Greets a user.")
-# @app_commands.describe(user="The user to greet")
-# async def greet_command(interaction: discord.Interaction, user: discord.Member):
-#     await interaction.response.send_message(f"Hello, {user.display_name}!")
-
 f = open("secret.txt", "r")
 token = f.read()
 
