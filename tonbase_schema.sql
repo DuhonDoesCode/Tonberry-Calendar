@@ -19,12 +19,8 @@ CREATE TABLE events (
     recurring_when INTEGER,
     description TEXT,
     image_url TEXT,
+    notification_channel INTEGER,
+    ping_role INTEGER NOT NULL,
     server_id INTEGER NOT NULL,
     FOREIGN KEY (server_id) REFERENCES server(id) ON DELETE CASCADE
-);
-
-CREATE TABLE ping_roles (
-    id INTEGER PRIMARY KEY,
-    event_id INTEGER,
-    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 );
