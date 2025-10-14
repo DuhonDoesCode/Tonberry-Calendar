@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
+from discord.ui import Button, View
 import sqlite3
 from datetime import datetime, date, time, timedelta
 import calendar
@@ -11,6 +12,21 @@ intents.message_content = True  # Required for message-based commands if also us
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 schedules = []
+
+calendar_pictures = [
+    "https://media.discordapp.net/attachments/1425681011844583504/1425685212620390490/FINAL_FANTASY_XIV_Online_20250918161915.jpg?ex=68e87c52&is=68e72ad2&hm=394027395f7ac689f631f0969e6e763abe99eb52b45facee55c122656dd06374&=&format=webp&width=1707&height=960", # Jan, Sozin
+    "https://media.discordapp.net/attachments/1425681011844583504/1425685270875082782/FINAL_FANTASY_XIV_Online_20250921075851.jpg?ex=68e87c60&is=68e72ae0&hm=4e60cd914fd71eaabc54573ebe06dc3474186dbe88881efc9bcc68bd28c27e48&=&format=webp&width=1707&height=960", # Feb, Fia and Combop
+    "https://media.discordapp.net/attachments/1425681011844583504/1425685066130001981/FINAL_FANTASY_XIV_Online_20250906122140.jpg?ex=68e87c2f&is=68e72aaf&hm=3a4794780592a5d1abd5b5d59da69e1abeaa4a4977cc492200c2b2f4b22e276f&=&format=webp&width=1707&height=960", # March, Cyclops
+    "https://media.discordapp.net/attachments/1425681011844583504/1425684983229579304/FINAL_FANTASY_XIV_Online_20250824181954.jpg?ex=68e87c1b&is=68e72a9b&hm=d3b8e4b56e4eb65ae8f7b58c351fdd7bce47dc24e77019b40356446c0ddca199&=&format=webp&width=1707&height=960", # April, Eliza
+    "https://media.discordapp.net/attachments/1425681011844583504/1425685026603008110/FINAL_FANTASY_XIV_Online_20250830234855.jpg?ex=68e87c26&is=68e72aa6&hm=6218e1bcc35b4c8a5bffd6e40fec4c1e252cc03c5404d24acbd8d5c2a6159401&=&format=webp&width=1707&height=960", # May, Freyja
+    "https://media.discordapp.net/attachments/1425681011844583504/1425684945476780133/FINAL_FANTASY_XIV_Online_20250824175607.jpg?ex=68e87c12&is=68e72a92&hm=0d8e35b410bb99bd002df0b84cdd73ef0f767b851a5dfc9158f1bd2e6fff70a7&=&format=webp&width=1707&height=960", # June, Sorrell
+    "https://media.discordapp.net/attachments/1425681011844583504/1425684903063978066/FINAL_FANTASY_XIV_Online_20250821114329.jpg?ex=68e87c08&is=68e72a88&hm=dc538f6d3af21e306caae53035fcb14f31cb994eb1ab0e9a186ce39cfa0ce4b2&=&format=webp&width=1707&height=960", # July, Gemini
+    "https://media.discordapp.net/attachments/1425681011844583504/1425685153921105980/FINAL_FANTASY_XIV_Online_20250907163853.jpg?ex=68e87c44&is=68e72ac4&hm=29edaa771e68880f9b48f7b8fc3ceb8acdfe19ad1f5ae47854c8bb35f8445365&=&format=webp&width=1707&height=960", # August, Sorivian
+    "https://media.discordapp.net/attachments/1425681011844583504/1425685111185342475/FINAL_FANTASY_XIV_Online_20250906123148.jpg?ex=68e87c3a&is=68e72aba&hm=920368f71ecf9a37f76733360c7ac16bf85437e85a8a0f935b9a9d806f13164e&=&format=webp&width=1707&height=960", # September, Scorpio
+    "https://media.discordapp.net/attachments/1425681011844583504/1425685312146772050/FINAL_FANTASY_XIV_Online_20250921075929.jpg?ex=68e87c6a&is=68e72aea&hm=3a0ab9b748ac5fd7d0936387dcfba972a72053e376855b85f64fd2c3af5fa789&=&format=webp&width=1707&height=960", # October, Pigy
+    "https://media.discordapp.net/attachments/1425681011844583504/1425684856452419664/FINAL_FANTASY_XIV_Online_20250821070524.jpg?ex=68e87bfd&is=68e72a7d&hm=cbd103d010b5b06a22c27d60b4e47a5bde3969ebd7a5f539e794c210897f0ee0&=&format=webp&width=1707&height=960", # November, Yealand
+    "https://media.discordapp.net/attachments/1425681011844583504/1425823701835710627/FINAL_FANTASY_XIV_Online_20251009071251.jpg?ex=68e8fd4d&is=68e7abcd&hm=caa259e92fc3b3c44aadfab67d2892d8b20dba2f939d494c4773d99579ef4db7&=&format=webp&width=1707&height=960" # December, Cook
+]
 
 # Decorators
 def is_manager():
@@ -134,7 +150,7 @@ async def check_event():
                 if abs(ts - current_time) <= 60:
                     advertise_recurring = True
 
-        if abs(et - current_time) <= 60 or advertise_recurring:
+        if (abs(et - current_time) <= 60 and et < current_time) or advertise_recurring:
             channel_id = i[-3]
             guild_id = i[-1]
             event_id = i[0]
@@ -165,7 +181,7 @@ async def check_event():
 @app_commands.choices(recurring_when = [
     app_commands.Choice(name="Weekly", value=0), app_commands.Choice(name="Monthly", value=1)
 ])
-async def add(interaction : discord.Interaction, cal_date : str, cal_time : str, channel : discord.TextChannel, role : discord.Role, recurring_when : app_commands.Choice[int], recurring : int, name : str = "Event", description : str = "Description.", image : str = ""):
+async def add(interaction : discord.Interaction, cal_date : str, cal_time : str, channel : discord.TextChannel, role : discord.Role, recurring_when : app_commands.Choice[int], recurring : bool, name : str = "Event", description : str = "Description.", image : str = ""):
     cal_date = [int(i) for i in cal_date.split("/")]
     date_obj = date(cal_date[2], cal_date[0], cal_date[1])
     cal_time = [int(i) for i in cal_time.split(":")]
@@ -257,12 +273,94 @@ async def toncal(interaction : discord.Interaction, month : app_commands.Choice[
             for i in r_event_dts:
                 day = i.day
                 cal_str = cal_str.replace(" " + str(day) + " ", f" \u001b[4;{color}m{str(day)}\u001b[0m ", 1)
-            
+    upcoming = ""
+    if min_time != 0:
+        upcoming = f" Next up:\n {min_name}, <t:{int(min_time)}:R>."
         
-    embed.set_image(url="https://img-9gag-fun.9cache.com/photo/a87V7Ne_460s.jpg") # Temporary image
-    embed.add_field(name="Calendar (colored green = event in the day)", value=(f"```ansi\n{cal_str}\n```\n " + f" Next up:\n {min_name}, <t:{int(min_time)}:R>."))
+        
+    embed.set_image(url=calendar_pictures[month.value - 1])
+    embed.add_field(name="Calendar (colored green = event in the day)", value=(f"```ansi\n{cal_str}\n```\n " + upcoming))
     embed.set_footer(text="Brought to you by the Tonberries FC.")
     await interaction.response.send_message(embed=embed)
+
+class EventBrowse(View):
+    def __init__(self, current_ts, index, interaction_og):
+        super().__init__()
+        # button_next = Button(label=">", style=discord.ButtonStyle.primary, custom_id="next")
+        # button_previous = Button(label="<", style=discord.ButtonStyle.primary, custom_id="previous")
+        # button_delete = Button(label="X", style=discord.ButtonStyle.primary, custom_id="del")
+        # self.add_item(button_next)
+        # self.add_item(button_previous)
+        # self.add_item(button_delete)
+        self.current_ts = current_ts
+        self.index = index
+        self.interaction = interaction_og
+
+    
+    @discord.ui.button(label="<", style=discord.ButtonStyle.primary, custom_id="previous")
+    @is_manager()
+    async def button_callback1(self, interaction: discord.Interaction, button: Button):
+        conn = sqlite3.connect('tonbase.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM events WHERE server_id = ?", (int(interaction.guild_id),))
+        server_events = cursor.fetchall()
+        conn.close()
+        switch_to = server_events[self.index - 1]
+        self.index -= 1
+        await self.interaction.edit_original_response(content=f"Event called {switch_to[1]} <t:{switch_to[2]}:R>.\nDescription: {switch_to[6]}\nHosted by: <@{switch_to[3]}>.")
+
+    @discord.ui.button(label="x", style=discord.ButtonStyle.primary, custom_id="del")
+    @is_manager()
+    async def button_callback3(self, interaction: discord.Interaction, button: Button):
+        conn = sqlite3.connect('tonbase.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM events WHERE server_id = ?", (int(interaction.guild_id),))
+        server_events = cursor.fetchall()
+        id = server_events[self.index][0]
+        current = server_events[self.index]
+        cursor.execute("DELETE FROM events WHERE id = ?", (id,))
+        print(id)
+        conn.commit()
+        conn.close()
+        await self.interaction.edit_original_response(content=f"Event called ~~{current[1]}~~ **CANCELLED** <t:{current[2]}:R>.\nDescription: {current[6]}\nHosted by: <@{current[3]}>.")
+
+    @discord.ui.button(label=">", style=discord.ButtonStyle.primary, custom_id="next")
+    @is_manager()
+    async def button_callback2(self, interaction: discord.Interaction, button: Button):
+        conn = sqlite3.connect('tonbase.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM events WHERE server_id = ?", (int(interaction.guild_id),))
+        server_events = cursor.fetchall()
+        conn.close()
+        switch_to = server_events[self.index + 1]
+        self.index += 1
+        await self.interaction.edit_original_response(content=f"Event called {switch_to[1]} <t:{switch_to[2]}:R>.\nDescription: {switch_to[6]}\nHosted by: <@{switch_to[3]}>.")
+
+
+@bot.tree.command(name="events", description="Displays a list of events which can be removed.")
+@is_manager()
+async def eventlist(interaction : discord.Interaction):
+    current_ts = datetime.now().timestamp()
+    conn = sqlite3.connect('tonbase.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM events WHERE server_id = ?", (int(interaction.guild_id),))
+    server_events = cursor.fetchall()
+    conn.close()
+    smallest = 9999999999999999999999
+    smallest_e = None
+    index = 0
+    for k, i in enumerate(server_events):
+        if i[2] >= current_ts and i[2] <= smallest: # Yet to happen, but also the smallest one.
+            smallest = i[2]
+            smallest_e = i
+            index = k
+    response = ""
+    if not smallest_e:
+        response = "No events!"
+    else:
+        response = f"Event called {smallest_e[1]} <t:{smallest_e[2]}:R>.\nDescription: {smallest_e[6]}\nHosted by: <@{smallest_e[3]}>."
+    view = EventBrowse(current_ts, index, interaction)
+    await interaction.response.send_message(response, view=view)
 
 @bot.event
 async def on_ready():
