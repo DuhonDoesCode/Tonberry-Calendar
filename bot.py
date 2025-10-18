@@ -128,26 +128,49 @@ async def check_event():
         month_e = today.month
         recurring = i[4]
         recurring_when = i[5]
+        timezone = int(i[7]) + 3
         et = int(i[2])
+        et -= timezone*3600 # Minus is more... yeah, timezones.
         event_time = et # alias
         advertise_recurring = False
         inter = 604800
+        dt_obj = datetime.fromtimestamp(et)
         if recurring:
+            day_of_week = dt_obj.weekday() # Day of the week the event takes place
+            day_of_month = dt_obj.day # Day of month event takes place
             if recurring_when == 0:
                 tmp = event_time%604800 # How many seconds into the week it is.
                 recurring_ts = tmp
-
             elif recurring_when == 1:
                 inter = 2629746
                 tmp = event_time%2629746 # Yeah, you get it right? This time, month.
                 recurring_ts = tmp
             first_of_month = datetime(year_e, month_e, 1)
             first_ts = first_of_month.timestamp()
-            r_event_ts = [first_ts + recurring_ts + inter*i for i in range(4)] # Works well enough, overflows into outside the calendar when needed with no fallout.
-            if int(first_ts)%inter > recurring_ts: # Detects if the first of the month is actually after the day of the week.
-               r_event_ts.pop(0)
-            for ts in r_event_ts:
-                if abs(ts - current_time) <= 60:
+            r_event_ts = [first_ts + recurring_ts + inter*i for i in range(5)] # Works well enough, overflows into outside the calendar when needed with no fallout.
+            # if int(first_ts)%inter > recurring_ts: # Detects if the first of the month is actually after the day of the week.
+            #    print(recurring_ts)
+            #    print(int(first_ts)%inter)
+            #    r_event_ts.pop(0)
+            r_event_dts = [datetime.fromtimestamp(int(i)) for i in r_event_ts]
+            previous = 0
+            print(day_of_week)
+            print(day_of_month)
+            for i in r_event_dts:
+                day = i.day
+                if recurring_when == 0:
+                    diff = day_of_week - i.weekday()
+                    # diff += diff/abs(diff)
+
+                    i = datetime.fromtimestamp(i.timestamp() + diff*86400)
+                    print("Old weekday", i.weekday())
+                    day = i.day
+                    print("New weekday", i.weekday())
+                    print("Expected ", day_of_week)
+                elif recurring_when == 1:
+                    day = day_of_month
+            for ts in r_event_dts:
+                if abs(ts.timestamp() - current_time) <= 60:
                     advertise_recurring = True
 
         if (abs(et - current_time) <= 60 and et < current_time) or advertise_recurring:
@@ -172,16 +195,12 @@ async def check_event():
             conn.close()
             await channel.send(f"Alert! The event \"{event_name}\" is about to start! {role_pings}")
 
-# @bot.tree.command(name="check", description="Check the next event.")
-# async def check(interaction : discord.Interaction):
-#     await check_event()
-
-@bot.tree.command(name="addevent", description="Adds an event to the list. Only usable by managers.")
+@bot.tree.command(name="addevent", description="Adds an event to the list. Only usable by managers. Default timezone is GMT-3.")
 @is_manager()
 @app_commands.choices(recurring_when = [
     app_commands.Choice(name="Weekly", value=0), app_commands.Choice(name="Monthly", value=1)
 ])
-async def add(interaction : discord.Interaction, cal_date : str, cal_time : str, channel : discord.TextChannel, role : discord.Role, recurring_when : app_commands.Choice[int], recurring : bool, name : str = "Event", description : str = "Description.", image : str = ""):
+async def add(interaction : discord.Interaction, cal_date : str, cal_time : str, channel : discord.TextChannel, role : discord.Role, recurring_when : app_commands.Choice[int], recurring : bool, name : str = "Event", description : str = "Description.", timezone : int = -3):
     cal_date = [int(i) for i in cal_date.split("/")]
     date_obj = date(cal_date[2], cal_date[0], cal_date[1])
     cal_time = [int(i) for i in cal_time.split(":")]
@@ -197,7 +216,7 @@ async def add(interaction : discord.Interaction, cal_date : str, cal_time : str,
     if result is None:
         cursor.execute("INSERT INTO server (id) VALUES (?);", (guild_id,))
         conn.commit()
-    cursor.execute("INSERT INTO events (name, time, host_id, recurring, recurring_when, description, image_url, notification_channel, ping_role, server_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (name, int(timestamp), host_id, recurring, recurring_when.value, description, image, channel.id, role.id, guild_id,))
+    cursor.execute("INSERT INTO events (name, time, host_id, recurring, recurring_when, description, timezone, notification_channel, ping_role, server_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (name, int(timestamp), host_id, recurring, recurring_when.value, description, timezone, channel.id, role.id, guild_id,))
     conn.commit()
     cursor.execute("SELECT * FROM events WHERE time = ?", (int(timestamp),))
     added_event = cursor.fetchone()
@@ -214,7 +233,7 @@ async def add(interaction : discord.Interaction, cal_date : str, cal_time : str,
 async def toncal(interaction : discord.Interaction, month : app_commands.Choice[int], year : int = 0):
     embed = discord.Embed(
         title=calendar.month_name[month.value],
-        description=f"Welcome to the {calendar.month_name[month.value]} calendar for the Tonberry FC!",
+        description=f"Welcome to the {calendar.month_name[month.value]} calendar for the Tonberry FC! Timezone displayed is GMT-3.",
         color=discord.Color.green()
     )
     today = date.today()
@@ -222,6 +241,8 @@ async def toncal(interaction : discord.Interaction, month : app_commands.Choice[
         year = today.year
     cal = calendar.TextCalendar(calendar.SUNDAY)
     cal_str = cal.formatmonth(year, month.value)
+    index = cal_str.find("Su ")
+    cal_str = cal_str[index::]
     guild_id = interaction.guild_id
     conn = sqlite3.connect('tonbase.db')
     cursor = conn.cursor()
@@ -232,6 +253,8 @@ async def toncal(interaction : discord.Interaction, month : app_commands.Choice[
     min_name = ""
     for event in events:
         event_time = event[2]
+        timezone = event[7] + 3
+        event_time -= timezone*3600 # Minus is more... yeah, timezones.
         event_name = event[1]
         recurring = event[4]
         recurring_when = event[5] # This is a surprise tool that will help us later
@@ -250,29 +273,46 @@ async def toncal(interaction : discord.Interaction, month : app_commands.Choice[
         inter = 604800
 
         if month.value == month_e and year_e == year:
-            index = cal_str.find("Su ")
-            cal_str2 = cal_str[index::]
-            cal_str2 = cal_str2.replace(" " + str(day_e) + " ", f" \u001b[4;{color}m{str(day_e)}\u001b[0m ", 1)
-            cal_str = cal_str2
+            cal_str = cal_str.replace(str(day_e), f"\u001b[4;{color}m{str(day_e)}\u001b[0m", 1)
 
         if recurring:
+            day_of_week = dt_obj.weekday() # Day of the week the event takes place
+            day_of_month = dt_obj.day # Day of month event takes place
             if recurring_when == 0:
                 tmp = event_time%604800 # How many seconds into the week it is.
                 recurring_ts = tmp
-
             elif recurring_when == 1:
                 inter = 2629746
                 tmp = event_time%2629746 # Yeah, you get it right? This time, month.
                 recurring_ts = tmp
-            first_of_month = datetime(year_e, month_e, 1)
+            first_of_month = datetime(year, month.value, 1)
             first_ts = first_of_month.timestamp()
-            r_event_ts = [first_ts + recurring_ts + inter*i for i in range(4)] # Works well enough, overflows into outside the calendar when needed with no fallout.
-            if int(first_ts)%inter > recurring_ts: # Detects if the first of the month is actually after the day of the week.
-               r_event_ts.pop(0)
+            r_event_ts = [first_ts + recurring_ts + inter*i for i in range(5)] # Works well enough, overflows into outside the calendar when needed with no fallout.
+            # if int(first_ts)%inter > recurring_ts: # Detects if the first of the month is actually after the day of the week.
+            #    print(recurring_ts)
+            #    print(int(first_ts)%inter)
+            #    r_event_ts.pop(0)
             r_event_dts = [datetime.fromtimestamp(int(i)) for i in r_event_ts]
+            previous = 0
+            print(day_of_week)
+            print(day_of_month)
             for i in r_event_dts:
                 day = i.day
-                cal_str = cal_str.replace(" " + str(day) + " ", f" \u001b[4;{color}m{str(day)}\u001b[0m ", 1)
+                if recurring_when == 0:
+                    diff = day_of_week - i.weekday()
+                    # diff += diff/abs(diff)
+
+                    i = datetime.fromtimestamp(i.timestamp() + diff*86400)
+                    print("Old weekday", i.weekday())
+                    day = i.day
+                    print("New weekday", i.weekday())
+                    print("Expected ", day_of_week)
+                elif recurring_when == 1:
+                    day = day_of_month
+
+                if day > previous:
+                    previous = day
+                    cal_str = cal_str.replace(str(day), f"\u001b[4;{color}m{str(day)}\u001b[0m", 1)
     upcoming = ""
     if min_time != 0:
         upcoming = f" Next up:\n {min_name}, <t:{int(min_time)}:R>."
@@ -350,6 +390,7 @@ async def eventlist(interaction : discord.Interaction):
     smallest_e = None
     index = 0
     for k, i in enumerate(server_events):
+        et = i[2] + (i[7] + 3)*3600
         if i[2] >= current_ts and i[2] <= smallest: # Yet to happen, but also the smallest one.
             smallest = i[2]
             smallest_e = i

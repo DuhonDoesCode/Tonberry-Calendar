@@ -18,7 +18,7 @@ CREATE TABLE events (
     recurring INTEGER,
     recurring_when INTEGER,
     description TEXT,
-    image_url TEXT,
+    timezone INTEGER,
     notification_channel INTEGER,
     ping_role INTEGER NOT NULL,
     server_id INTEGER NOT NULL,
