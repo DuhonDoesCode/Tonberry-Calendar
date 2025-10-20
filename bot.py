@@ -118,10 +118,11 @@ async def managers(interaction: discord.Interaction):
     message = ", ".join([guild.get_role(i[0]).name for i in allowed_roles])
     await interaction.response.send_message("The roles with permission to manage the calendar are " + message + ".")
 
-@tasks.loop(minutes=1)
+@tasks.loop(seconds=30)
 async def check_event():
     current_time = datetime.now()
     current_time = current_time.timestamp()
+    print(schedules)
     for i in schedules:
         today = date.today()
         year_e = today.year
@@ -130,7 +131,9 @@ async def check_event():
         recurring_when = i[5]
         timezone = int(i[7]) + 3
         et = int(i[2])
+        print("Before", et)
         et -= timezone*3600 # Minus is more... yeah, timezones.
+        print("After", et)
         event_time = et # alias
         advertise_recurring = False
         inter = 604800
@@ -173,7 +176,7 @@ async def check_event():
                 if abs(ts.timestamp() - current_time) <= 60:
                     advertise_recurring = True
 
-        if (abs(et - current_time) <= 60 and et < current_time) or advertise_recurring:
+        if (abs(int(et) - int(current_time)) < 30 and int(et) < int(current_time)) or advertise_recurring:
             channel_id = i[-3]
             guild_id = i[-1]
             event_id = i[0]
@@ -220,8 +223,10 @@ async def add(interaction : discord.Interaction, cal_date : str, cal_time : str,
     conn.commit()
     cursor.execute("SELECT * FROM events WHERE time = ?", (int(timestamp),))
     added_event = cursor.fetchone()
-    schedules.append(added_event)
+    if added_event not in schedules:
+        schedules.append(added_event)
     conn.close()
+    print("EVENT CREATED! IF THE BOT DID NOT CONFIRM BLAME DISCORD")
     await interaction.response.send_message("Done! Created event.")
 
 @bot.tree.command(name="calendar", description="Displays a calendar with events.")
@@ -315,11 +320,11 @@ async def toncal(interaction : discord.Interaction, month : app_commands.Choice[
                     cal_str = cal_str.replace(str(day), f"\u001b[4;{color}m{str(day)}\u001b[0m", 1)
     upcoming = ""
     if min_time != 0:
-        upcoming = f" Next up:\n {min_name}, <t:{int(min_time)}:R>."
+        upcoming = f"Next up:\n {min_name}, <t:{int(min_time)}:R>."
         
         
     embed.set_image(url=calendar_pictures[month.value - 1])
-    embed.add_field(name="Calendar (colored green = event in the day)", value=(f"```ansi\n{cal_str}\n```\n " + upcoming))
+    embed.add_field(name="Calendar (colored green = event in the day)", value=(f"```ansi\n{cal_str}\n```\n" + upcoming))
     embed.set_footer(text="Brought to you by the Tonberries FC.")
     await interaction.response.send_message(embed=embed)
 
@@ -347,7 +352,7 @@ class EventBrowse(View):
         conn.close()
         switch_to = server_events[self.index - 1]
         self.index -= 1
-        await self.interaction.edit_original_response(content=f"Event called {switch_to[1]} <t:{switch_to[2]}:R>.\nDescription: {switch_to[6]}\nHosted by: <@{switch_to[3]}>.")
+        await self.interaction.edit_original_response(content=f"Event called {switch_to[1]} <t:{switch_to[2] - (switch_to[7] + 3)*3600}:R>.\nDescription: {switch_to[6]}\nHosted by: <@{switch_to[3]}>.")
 
     @discord.ui.button(label="x", style=discord.ButtonStyle.primary, custom_id="del")
     @is_manager()
@@ -374,7 +379,7 @@ class EventBrowse(View):
         conn.close()
         switch_to = server_events[self.index + 1]
         self.index += 1
-        await self.interaction.edit_original_response(content=f"Event called {switch_to[1]} <t:{switch_to[2]}:R>.\nDescription: {switch_to[6]}\nHosted by: <@{switch_to[3]}>.")
+        await self.interaction.edit_original_response(content=f"Event called {switch_to[1]} <t:{switch_to[2] - (switch_to[7] + 3)*3600}:R>.\nDescription: {switch_to[6]}\nHosted by: <@{switch_to[3]}>.")
 
 
 @bot.tree.command(name="events", description="Displays a list of events which can be removed.")
@@ -390,7 +395,7 @@ async def eventlist(interaction : discord.Interaction):
     smallest_e = None
     index = 0
     for k, i in enumerate(server_events):
-        et = i[2] + (i[7] + 3)*3600
+        et = i[2] - (i[7] + 3)*3600
         if i[2] >= current_ts and i[2] <= smallest: # Yet to happen, but also the smallest one.
             smallest = i[2]
             smallest_e = i
@@ -399,7 +404,8 @@ async def eventlist(interaction : discord.Interaction):
     if not smallest_e:
         response = "No events!"
     else:
-        response = f"Event called {smallest_e[1]} <t:{smallest_e[2]}:R>.\nDescription: {smallest_e[6]}\nHosted by: <@{smallest_e[3]}>."
+        response = f"Event called {smallest_e[1]} <t:{smallest_e[2] - (smallest_e[7] + 3)*3600}:R>.\nDescription: {smallest_e[6]}\nHosted by: <@{smallest_e[3]}>."
+        print("Smallest", smallest_e[7])
     view = EventBrowse(current_ts, index, interaction)
     await interaction.response.send_message(response, view=view)
 
